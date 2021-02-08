@@ -1,0 +1,8 @@
+for server in `cat /opt/smokeping/etc/smokeping_secrets | awk -F: '{print $1}'`
+do
+ echo $server
+ ssh -t -o IdentitiesOnly=yes $server "$( cat <<'EOT'
+ service smokeping stop
+EOT
+)"
+done

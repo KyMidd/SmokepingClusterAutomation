@@ -1,0 +1,267 @@
+*** General ***
+
+owner    = Your Team Name
+contact  = your@email.com
+#mailhost = mail.domain.com
+mailhost = localhost
+sendmail = /usr/sbin/sendmail
+# NOTE: do not put the Image Cache below cgi-bin
+# since all files under cgi-bin will be executed ... this is not
+# good for images.
+imgcache = /opt/smokeping/cache
+imgurl   = cache
+datadir  = /opt/smokeping/data
+piddir  = /opt/smokeping/var
+cgiurl   = https://your.domain.com/smokeping/
+smokemail = /opt/smokeping/etc/smokemail
+#tmail = /opt/smokeping/etc/tmail
+# specify this to get syslog logging
+syslogfacility = local0
+# each probe is now run in its own process
+# disable this to revert to the old behaviour
+concurrentprobes = yes
+
+*** Alerts ***
+# Send Alerts to Slack Channel
+to = |/opt/smokeping/bin/smokeping-notifications.sh
+from = alerts@domain.com
+
+# Define Pattern Matchers
++someloss
+type = matcher
+# in percent
+pattern = CheckLoss(l=>5,x=>3)
+edgetrigger = yes
+comment = >= 5% packet loss in 180s
+priority = 3
+
++highloss
+type = matcher
+# in percent
+pattern = CheckLoss(l=>50,x=>3)
+edgetrigger = yes
+comment = >= 50% packet loss in 180s
+priority = 2
+
++majorloss
+type = matcher
+# in percent
+pattern = CheckLoss(l=>99,x=>3)
+edgetrigger = yes
+comment = >=100% packet loss in 180s
+priority = 1
+
++offlineatstartup
+type = rtt
+pattern = ==S,==U
+comment = offline at startup
+
++hostdown_with_state
+type        = loss
+pattern     = >50%
+edgetrigger = yes
+comment     = host down
+
++lossdetect
+type        = loss
+pattern     = ==0%,==0%,==0%,==0%,==0%,>0%,>0%,>0%
+comment     = suddenly there is packet loss
+
++lossdetect_with_state
+type        = loss
+edgetrigger = yes
+pattern     = ==0%,==0%,==0%,==0%,==0%,>5%,>5%,>5%
+comment     = sudden packet loss >5%
+
++rttdetect
+type    = rtt
+pattern = <100,<100,<100,<100,<100,>100,>100,>100
+comment = suddenly latency increased over 100ms
+edgetrigger = yes
+
++lost_5_from_20_with_state
+type        = matcher
+edgetrigger = yes
+pattern     = CheckLoss(l => 5,x => 20)
+comment     = lost over 5 from 20 samples
+
++rtt_avg_increased
+type        = matcher
+pattern     = Avgratio(historic => 20, current => 2, comparator=>'>', percentage => 200)
+comment     = average latency from last 2 samples increased over 200% when compared to average from last 20 samples
+edgetrigger = yes
+
+# Define Default Polling Interval and Number of Pings
+*** Database ***
+
+step     = 120
+pings    = 20
+
+# consfn mrhb steps total
+
+AVERAGE  0.5   1  1008
+AVERAGE  0.5  12  4320
+    MIN  0.5  12  4320
+    MAX  0.5  12  4320
+AVERAGE  0.5 144   720
+    MAX  0.5 144   720
+    MIN  0.5 144   720
+
+*** Presentation ***
+
+template = /opt/smokeping/etc/basepage.html
+
+# Define Various Charts of Interest
++ charts
+
+menu = Charts
+title = The most interesting destinations
+
+++ stddev
+sorter = StdDev(entries=>4)
+title = Top Standard Deviation
+menu = Std Deviation
+format = Standard Deviation %f
+
+++ max
+sorter = Max(entries=>5)
+title = Top Max Roundtrip Time
+menu = by Max
+format = Max Roundtrip Time %f seconds
+
+++ loss
+sorter = Loss(entries=>5)
+title = Top Packet Loss
+menu = Loss
+format = Packets Lost %f
+
+++ median
+sorter = Median(entries=>5)
+title = Top Median Roundtrip Time
+menu = by Median
+format = Median RTT %f seconds
+
+# Define Default Chart Characteristics
++ overview
+max_rtt = 1000000000
+
+width = 750
+height = 150
+range = 12h
+
++ detail
+
+width = 750
+height = 150
+unison_tolerance = 2
+
+"Last 3 Hours"    3h
+"Last 30 Hours"   30h
+"Last 10 Days"    10d
+"Last 400 Days"   400d
+
+
+# Define Smokeping Probes
+*** Probes ***
+
++ AnotherCurl
+step  = 5
+pings = 3
+#offset = random
+binary = /usr/bin/curl
+extraargs =  -k1
+
++ FPing
+binary = /usr/bin/fping
+
+++ fping
+binary = /usr/bin/fping
+offset = 0%
+step = 60
+pings = 45
+timeout = 1
+
++DNS
+binary = /usr/bin/dig
+pings = 60
+
++Curl
+binary = /usr/bin/curl
+extraargs =  -k1
+
++SSH
+binary = /usr/bin/ssh-keyscan
+pings = 4
+
++TCPPing
+binary = /usr/bin/tcpping
+
+++tcpping
+binary = /usr/bin/tcpping
+forks = 10
+offset = 50%
+step = 120
+#tcptraceroute =  /usr/bin/tcptraceroute
+timeout = 15
+
+# The following variables can be overridden in each target section
+pings = 10
+port = 443
+
+
+# Define Smokeping Slave Servers
+*** Slaves ***
+secrets=/opt/smokeping/etc/smokeping_secrets
+
++runner1
+display_name=runner1
+location=us-east-1
+color=00ff00
+
++runner2
+display_name=runner2
+location=us-west-1
+color=ff33cc
+
+
+# Define Smokeping Target Hosts
+*** Targets ***
+
+probe = fping
+
+menu = Top
+title = Network Latency Grapher
+remark = Welcome to the SmokePing website. \
+         Here you will learn all about the latency of our network.
+
+#Begin Top Level Tree
+
++ network-latency
+menu  = Network Latency
+title = Network Latency
+
+
+#Begin Internal Latency Branch
+
+++ Internal_Latency
+menu = Internal Latency
+title = Internal Latency
+probe = fping2
+
++++ smokeping-site1-latency
+menu = Site1
+title = Site1 Latency
+
+++++ host1
+menu = host1 (1.2.3.4)
+title = host1 (1.2.3.4) Latency
+host = 1.2.3.4
+alerts = someloss,highloss,majorloss
+slaves = runner1 runner2
+
+++++ host2
+menu = host2 (1.2.3.5)
+title = host2 (1.2.3.5) Latency
+host = 1.2.3.5
+alerts = someloss,highloss,majorloss
+slaves = runner1 runner2

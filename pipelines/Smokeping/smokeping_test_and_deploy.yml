@@ -1,0 +1,93 @@
+# Smokeping Config Checker and Deployer
+variables:
+  org_name: 'your_org'
+  smokeping_dest_config_directory: '/opt/smokeping/'
+  smokeping_version: '2.6.11-2'
+  smokeping_master_host: 'Smokeping-Master'
+  smokeping_secrets_file: 'smokeping_secrets'
+
+# Automatically trigger pipeline when master branch updated (PR merged) in path "config/*"
+trigger:
+  branches:
+    include:
+    - master
+  paths:
+    include:
+    - config
+
+# Release instructions
+stages:
+- stage: Smokeping_Check
+  # Only run stage when triggered from pull request
+  condition: eq(variables['Build.Reason'], 'PullRequest')
+  jobs:
+  - deployment: Smokeping_Check
+    displayName: Check Config
+    pool: $(smokeping_master_host)
+    environment: Smokeping_Check
+    continueOnError: false
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: self
+
+            - task: Bash@3
+              displayName: Check Config
+              inputs:
+                targetType: inline
+                workingDirectory: $(System.DefaultWorkingDirectory)
+                failOnStderr: true
+                script: |
+                  /opt/smokeping/bin/smokeping --check --config=./config/$(org_name)/config
+
+- stage: Smokeping_Update
+  # Don't run stage when triggered from pull request
+  condition: ne(variables['Build.Reason'], 'PullRequest')
+  jobs:
+  - deployment: Smokeping_Update
+    displayName: Update Config
+    pool: $(smokeping_master_host)
+    environment: Smokeping_Update
+    continueOnError: false
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: self
+
+            - task: DownloadSecureFile@1
+              displayName: 'Download smokeping_secrets'
+              inputs:
+                secureFile: $(smokeping_secrets_file)
+
+            - task: CopyFiles@2
+              displayName: Stage secure files
+              inputs:
+                SourceFolder: $(Agent.TempDirectory)
+                Contents: $(smokeping_secrets_file)
+                TargetFolder: $(System.DefaultWorkingDirectory)/$(org_name)
+
+            - task: Bash@3
+              displayName: Stage Config
+              inputs:
+                targetType: inline
+                workingDirectory: $(System.DefaultWorkingDirectory)
+                failOnStderr: true
+                script: |
+                  sudo cp ./global/service/smokeping /etc/init.d/
+                  sudo systemctl daemon-reload
+                  sudo chmod 755 /etc/init.d/smokeping
+                  sudo cp ./config/$(org_name)/config $(smokeping_dest_config_directory)/etc/
+                  sudo cp ./global/bin/start-slaves $(smokeping_dest_config_directory)/bin/
+                  sudo cp ./global/bin/stop-slaves $(smokeping_dest_config_directory)/bin/
+                  sudo cp ./$(org_name)/$(smokeping_secrets_file) $(smokeping_dest_config_directory)/etc/smokeping_secrets
+
+            - task: Bash@3
+              displayName: Restart Smokeping
+              inputs:
+                targetType: inline
+                workingDirectory: $(smokeping_dest_config_directory)
+                failOnStderr: true
+                script: |
+                  sudo service smokeping restart
